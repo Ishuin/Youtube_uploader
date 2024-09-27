@@ -153,7 +153,6 @@ def create_or_get_playlist(youtube, playlist_name, storage):
 def upload_video(youtube, file_path, playlist_id, storage, update_file_progress):
     max_retries = 5
     retry_delay = 5  # seconds
-    print(f"########## file path 1 {file_path} ###############")
     try:
         stored_video = storage.get_video(file_path)
     except:
@@ -263,7 +262,6 @@ def process_directory(youtube, root_dir, storage, dry_run=False):
                 playlist_id = f"DRY_RUN_PLAYLIST_{playlist_name}"
                 for video in video_files:
                     video_path = os.path.join(dirpath, video)
-                    print(f"############ video path :: {video_path} ########################")
                     video_title = os.path.splitext(video)[0]
                     storage.add_dry_run_video(video_title, playlist_id, video_path)
                     print(f"Dry run: Processed {video} in playlist {playlist_name}")
@@ -271,7 +269,6 @@ def process_directory(youtube, root_dir, storage, dry_run=False):
                 playlist_id = create_or_get_playlist(youtube, playlist_name, storage)
                 for video in video_files:
                     video_path = os.path.join(dirpath, video)
-                    print(f"############ video path :: {video_path} ########################")
                     upload_video(youtube, video_path, playlist_id, storage)
                     print(f"Processed {video} in playlist {playlist_name}")
 
