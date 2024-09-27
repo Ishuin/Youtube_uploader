@@ -25,13 +25,7 @@ class UploaderThread(QThread):
         self.is_paused = False
         self.is_cancelled = False
 
-    def run(self):
-        if self.dry_run:
-            self.dry_run_process()
-        else:
-            self.upload_process()
-
-    def dry_run_process(self):
+    def _process_files(self, youtube=None):
         total_files = sum([len(files) for r, d, files in os.walk(self.directory) if any(f.endswith(('.mp4', '.avi', '.mov', '.mkv', '.m4v')) for f in files)])
         processed_files = 0
 
@@ -44,91 +38,69 @@ class UploaderThread(QThread):
             video_files = [f for f in filenames if f.endswith(('.mp4', '.avi', '.mov', '.mkv', '.m4v'))]
 
             if video_files:
-                playlist_id = f"DRY_RUN_PLAYLIST_{playlist_name}"
-                self.update_status.emit(f"Dry run: Processing {playlist_name}")
-                for video in video_files:
-                    if self.is_cancelled:
-                        return
-                    video_path = os.path.join(dirpath, video)
-                    video_title = os.path.splitext(video)[0]
-                    self.storage.add_dry_run_video(video_title, playlist_id, video_path)
-                    
-                    # Simulate file upload progress
-                    for progress in range(0, 101, 10):
-                        if self.is_cancelled:
-                            return
-                        time.sleep(0.1)  # Simulate processing time
-                        remaining_time = (100 - progress) * 0.1
-                        self.update_file_progress.emit(playlist_name, video_title, progress, remaining_time)
-                    
-                    processed_files += 1
-                    self.update_overall_progress.emit(int((processed_files / total_files) * 100), total_files, processed_files)
-                    self.file_completed.emit(playlist_name, video_title, "DRY_RUN")
+                if self.dry_run:
+                    playlist_id = f"DRY_RUN_PLAYLIST_{playlist_name}"
+                    self.update_status.emit(f"Dry run: Processing {playlist_name}")
+                else:
+                    playlist_id = create_or_get_playlist(youtube, playlist_name, self.storage)
+                    self.update_status.emit(f"Uploading to {playlist_name}")
 
-        self.update_status.emit("Dry run completed!")
-
-    def upload_process(self):
-        youtube = get_authenticated_service()
-        
-        # Calculate total files for progress tracking
-        total_files = sum([len(files) for r, d, files in os.walk(self.directory) if any(f.endswith(('.mp4', '.avi', '.mov', '.mkv', '.m4v')) for f in files)])
-        processed_files = 0
-
-        for dirpath, dirnames, filenames in os.walk(self.directory):
-            rel_path = os.path.relpath(dirpath, self.directory)
-            if rel_path == '.':
-                continue
-
-            playlist_name = '_'.join(rel_path.split(os.path.sep))
-            video_files = [f for f in filenames if f.endswith(('.mp4', '.avi', '.mov', '.mkv', '.m4v'))]
-
-            if video_files:
-                playlist_id = create_or_get_playlist(youtube, playlist_name, self.storage)
-                
                 for video in video_files:
                     while self.is_paused:
                         time.sleep(0.1)
                     if self.is_cancelled:
                         return
-
                     video_path = os.path.join(dirpath, video)
                     video_path = os.path.normpath(video_path)
                     video_title = os.path.splitext(video)[0]
                     
-                    try:
-                        # Actual upload (with real-time progress)
-                        video_id, video_title, _ = upload_video(
-                            youtube, video_path, playlist_id, self.storage, self.update_file_progress
-                        )
+                    if self.dry_run:
+                        self.storage.add_dry_run_video(video_title, playlist_id, video_path)
+                        for progress in range(0, 101, 10):
+                            if self.is_cancelled:
+                                return
+                            time.sleep(0.1)  # Simulate processing time
+                            remaining_time = (100 - progress) * 0.1
+                            self.update_file_progress.emit(playlist_name, video_title, progress, remaining_time)
+                    else:
+                        try:
+                            video_id, video_title, _ = upload_video(youtube, video_path, playlist_id, self.storage, self.update_file_progress)
+                            if video_id:
+                                self.update_status.emit(f"Uploaded: {video_title}")
+                                self.file_completed.emit(playlist_name, video_title, video_id)
+                            else:
+                                self.update_status.emit(f"Failed to upload: {os.path.basename(video_path)}")
+                        except QuotaExceededError as e:
+                            messagebox.showerror("Quota Exceeded", str(e))
+                            self.update_status.emit("Upload process stopped due to exceeded quota.")
+                            break  # Stop the upload process when quota exceeded
+                        except Exception as e:
+                            error_message = f"Error uploading {os.path.basename(video_path)}: {str(e)}"
+                            self.update_status.emit(error_message)
+                            messagebox.showerror("Upload Error", error_message)
+                            if not messagebox.askyesno("Continue Uploading", "An error occurred. Do you want to continue with the next video?"):
+                                break
 
-                        # Progress updates and quota handling
-                        if video_id:
-                            self.update_status.emit(f"Uploaded: {video_title}")
-                            processed_files += 1
-                            self.file_completed.emit(playlist_name, video_title, video_id)
-                        else:
-                            self.update_status.emit(f"Failed to upload: {os.path.basename(video_path)}")
-
-                    except QuotaExceededError as e:
-                        # Quota exceeded handling
-                        messagebox.showerror("Quota Exceeded", str(e))
-                        self.update_status.emit("Upload process stopped due to exceeded quota.")
-                        break  # Stop the upload process when quota exceeded
-
-                    except Exception as e:
-                        # General error handling
-                        error_message = f"Error uploading {os.path.basename(video_path)}: {str(e)}"
-                        self.update_status.emit(error_message)
-                        messagebox.showerror("Upload Error", error_message)
-                        
-                        # Ask user if they want to continue after an error
-                        if not messagebox.askyesno("Continue Uploading", "An error occurred. Do you want to continue with the next video?"):
-                            break
-
-                    # Update overall progress
+                    processed_files += 1
                     self.update_overall_progress.emit(int((processed_files / total_files) * 100), total_files, processed_files)
 
-        self.update_status.emit("Upload completed!")
+        if self.dry_run:
+            self.update_status.emit("Dry run completed!")
+        else:
+            self.update_status.emit("Upload completed!")
+
+    def dry_run_process(self):
+        self._process_files()
+
+    def upload_process(self):
+        youtube = get_authenticated_service()
+        self._process_files(youtube)
+
+    def run(self):
+        if self.dry_run:
+            self.dry_run_process()
+        else:
+            self.upload_process()
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -222,16 +194,10 @@ class MainWindow(QMainWindow):
             self.dir_label.setText(self.directory)
             self.upload_button.setEnabled(True)
 
-    def start_upload(self):
-        if not self.directory:
-            return
-
+    def _setup_uploader_thread(self, dry_run):
         storage_type = 'sqlite' if self.storage_combo.currentText() == "SQLite" else 'csv'
         storage_filename = 'youtube_uploader_data.sqlite' if storage_type == 'sqlite' else 'youtube_uploader_data.csv'
         self.storage = DataStorage(storage_type, storage_filename)
-        
-        dry_run = self.dry_run_checkbox.isChecked()
-
         self.uploader_thread = UploaderThread(self.directory, self.storage, dry_run)
         self.uploader_thread.update_overall_progress.connect(self.update_overall_progress)
         self.uploader_thread.update_file_progress.connect(self.update_file_progress)
@@ -239,6 +205,13 @@ class MainWindow(QMainWindow):
         self.uploader_thread.file_completed.connect(self.file_completed)
         self.uploader_thread.finished.connect(self.upload_finished)
         self.uploader_thread.start()
+
+    def start_upload(self):
+        if not self.directory:
+            return
+
+        dry_run = self.dry_run_checkbox.isChecked()
+        self._setup_uploader_thread(dry_run)
 
         self.upload_button.setEnabled(False)
         self.pause_button.setEnabled(not dry_run)
@@ -261,7 +234,7 @@ class MainWindow(QMainWindow):
         self.overall_progress_label.setText(f"Overall Progress: {processed_files}/{total_files} files")
 
     def update_file_progress(self, playlist, video, progress, remaining_time):
-        self.current_file_label.setText(f"Uploading {video} from {playlist}: {progress}%")
+        self.current_file_label.setText(f"Uploading {video} from {playlist}: {progress }%")
         self.current_file_progress_bar.setValue(progress)
         self.status_label.setText(f"Time left: {remaining_time:.2f}s")
 

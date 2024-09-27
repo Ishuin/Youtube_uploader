@@ -10,12 +10,11 @@ from googleapiclient.http import MediaFileUpload
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
 from google.auth.transport.requests import Request
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/youtube.force-ssl']
-secret_file = r"C:\\secret\\file\\path\\downloaded-from-google-developer.json"
+secret_file = r"C:\\Users\\Ishu\\Downloads\\client_secret_35310042494-noak3r3jdjhnlgl6c1b7be384iqn614j.apps.googleusercontent.com.json"
 token_file = "token.json"
 
 class QuotaExceededError(Exception):
@@ -52,7 +51,7 @@ class DataStorage:
             self.conn = sqlite3.connect(filename)
             self.cursor = self.conn.cursor()
             self.cursor.execute('''CREATE TABLE IF NOT EXISTS videos
-                                (id TEXT PRIMARY KEY, title TEXT, playlist_id TEXT, file_path TEXT)''')
+                                (id TEXT PRIMARY KEY, title TEXT, playlist_id TEXT, file_path TEXT, status TEXT)''')
             self.cursor.execute('''CREATE TABLE IF NOT EXISTS playlists
                                 (id TEXT PRIMARY KEY, name TEXT)''')
             self.conn.commit()
@@ -60,37 +59,37 @@ class DataStorage:
             if not os.path.exists(filename):
                 with open(filename, 'w', newline='') as f:
                     writer = csv.writer(f)
-                    writer.writerow(['id', 'title', 'playlist_id', 'file_path'])
+                    writer.writerow(['id', 'title', 'playlist_id', 'file_path', 'status'])
     
     def get_video(self, file_path):
         if self.storage_type == 'sqlite':
-            self.cursor.execute("SELECT * FROM videos WHERE file_path = ?", (file_path,))
+            self.cursor.execute("SELECT * FROM videos WHERE file_path = ? AND status != 'dry_run'", (file_path,))
             return self.cursor.fetchone()
         elif self.storage_type == 'csv':
             with open(self.filename, 'r', newline='') as f:
                 reader = csv.reader(f)
                 next(reader)  # Skip header
                 for row in reader:
-                    if len(row) >= 3:
-                        if row[3] == file_path:
+                    if len(row) >= 5:
+                        if row[3] == file_path and row[4] != 'dry_run':
                             return row
         return None
     
-    def add_video(self, video_id, title, playlist_id, file_path):
+    def add_video(self, video_id, title, playlist_id, file_path, status='uploaded'):
         if self.storage_type == 'sqlite':
-            self.cursor.execute("INSERT OR REPLACE INTO videos VALUES (?, ?, ?, ?)",
-                                (video_id, title, playlist_id, file_path))
+            self.cursor.execute("INSERT OR REPLACE INTO videos VALUES (?, ?, ?, ?, ?)",
+                                (video_id, title, playlist_id, file_path, status))
             self.conn.commit()
         elif self.storage_type == 'csv':
             with open(self.filename, 'a', newline='') as f:
                 writer = csv.writer(f)
-                writer.writerow([video_id, title, playlist_id, file_path])
+                writer.writerow([video_id, title, playlist_id, file_path, status])
     
     def add_dry_run_video(self, title, playlist_id, file_path):
         if self.storage_type == 'csv':
             with open(self.filename, 'a', newline='') as f:
                 writer = csv.writer(f)
-                writer.writerow(['DRY_RUN', title, playlist_id, file_path])
+                writer.writerow(['DRY_RUN', title, playlist_id, file_path, 'dry_run'])
 
     def get_playlist(self, name):
         if self.storage_type == 'sqlite':
@@ -101,7 +100,7 @@ class DataStorage:
                 reader = csv.reader(f)
                 next(reader)  # Skip header
                 for row in reader:
-                    if len(row) >= 1:
+                    if len(row) >= 2:
                         if row[1] == name:
                             return row
         return None
@@ -154,7 +153,7 @@ def create_or_get_playlist(youtube, playlist_name, storage):
 def upload_video(youtube, file_path, playlist_id, storage, update_file_progress):
     max_retries = 5
     retry_delay = 5  # seconds
-
+    print(f"########## file path 1 {file_path} ###############")
     try:
         stored_video = storage.get_video(file_path)
     except:
@@ -168,7 +167,7 @@ def upload_video(youtube, file_path, playlist_id, storage, update_file_progress)
     
     if youtube is None:  # Dry run mode
         video_id = f"dry_run_video_{video_title}"
-        storage.add_video(video_id, video_title, playlist_id, file_path)
+        storage.add_video(video_id, video_title, playlist_id, file_path, 'dry_run')
         return video_id, video_title, playlist_id
 
     for attempt in range(max_retries):
@@ -219,7 +218,7 @@ def upload_video(youtube, file_path, playlist_id, storage, update_file_progress)
             )
             playlist_request.execute()
 
-            storage.add_video(video_id, video_title, playlist_id, file_path)
+            storage.add_video(video_id, video_title, playlist_id, file_path, 'uploaded')
             return video_id, video_title, playlist_id
 
         except (SSLEOFError, HttpError, ResumableUploadError) as e:
@@ -236,7 +235,7 @@ def upload_video(youtube, file_path, playlist_id, storage, update_file_progress)
                 print(f"SSLEOFError occurred: {e}")
 
             if attempt < max_retries - 1:
-                print(f"Retrying in {retry_delay} seconds... (Attempt {attempt + 1} of {max_retries})")
+                print(f"Retrying in {retry_delay} seconds... (Attempt {attempt + 1 } of {max_retries})")
                 time.sleep(retry_delay)
                 retry_delay *= 2  # Exponential backoff
             else:
@@ -264,6 +263,7 @@ def process_directory(youtube, root_dir, storage, dry_run=False):
                 playlist_id = f"DRY_RUN_PLAYLIST_{playlist_name}"
                 for video in video_files:
                     video_path = os.path.join(dirpath, video)
+                    print(f"############ video path :: {video_path} ########################")
                     video_title = os.path.splitext(video)[0]
                     storage.add_dry_run_video(video_title, playlist_id, video_path)
                     print(f"Dry run: Processed {video} in playlist {playlist_name}")
@@ -271,6 +271,7 @@ def process_directory(youtube, root_dir, storage, dry_run=False):
                 playlist_id = create_or_get_playlist(youtube, playlist_name, storage)
                 for video in video_files:
                     video_path = os.path.join(dirpath, video)
+                    print(f"############ video path :: {video_path} ########################")
                     upload_video(youtube, video_path, playlist_id, storage)
                     print(f"Processed {video} in playlist {playlist_name}")
 
