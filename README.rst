@@ -1,159 +1,123 @@
 YouTube Uploader
-==========
+================
 
-Youploader.py is a simple Python script for uploading your videos to YouTube. It also arranges them into 
-playlists according to the directory structure of your videos directory.
+`youtube_uploader.py` is a Python script for uploading videos to YouTube, with automatic organization into playlists based on your directory structure.
 
-The script is superior to other YouTube uploaders in several ways:
+This script offers several key features:
 
-1. It preserves the layout of your videos directory by organizing the uploads playlists.
+1. It preserves the layout of your videos directory by organizing uploaded videos into playlists.
+2. It can be safely interrupted and restarted without making duplicate uploads.
+3. It can be automated to regularly back up your videos directory to YouTube.
 
-2. It can be safely interrupted and restarted and will avoid making duplicate uploads.
+Repository: `YouTube Uploader GitHub Repository <https://github.com/Ishuin/Youtube_uploader>`_
 
-3. It can be automated to regularly back up your videos directory.
+Features
+--------
 
+- **No Duplicate Uploads**: The script checks for existing uploads, ensuring no duplicates.
+- **Organized Playlists**: Automatically organizes videos into playlists based on directory structure.
+- **Automation-Friendly**: Can be set up for automatic, regular uploads.
 
 Instructions
-==========
+============
 
-The script in its current version is only tested on Windows so all instructions are targeted to Windows users.
+The script is primarily tested on Windows. The following instructions are tailored for Windows users.
 
+Setup Guide
+-----------
 
-Step 0. Prerequisites
---------------
+Step 0: Prerequisites
+~~~~~~~~~~~~~~~~~~~~~
 
-1. Python
+Before running the script, ensure that you have the following:
 
-Python 3.12.5 is used to create this application. To verfiy that, open a terminal and type ``python -V``. If you don't have it, get it from `here <http://www.python.org/getit/>`_.
+1. **Python 3.12.5**:
 
-2. Git
+   Verify your Python installation by running ``python -V``. If Python is not installed, download and install it from the official Python website.
 
-To see if you have Git installed, open a terminal and type ``git --version``. If you don’t have it, you can get the latest version from `here <https://code.google.com/p/git-osx-installer/downloads/list>`_.
+2. **Git**:
 
-3. Google Python API Client Library
+   Check if Git is installed by running ``git --version``. If Git is not installed, download it from the Git website.
 
-Run ``pip install google-api-python-client``. If you don't have ``pip``, you will first have to run ``sudo easy_install pip``.
+3. **Google Python API Client Library**:
 
-Alternatively, you can manually download and install the libraries from `here <https://code.google.com/p/google-api-python-client/downloads/list>`_ (it might help to read the Google API Python `getting started <https://developers.google.com/api-client-library/python/start/get_started>`_ docs first).
+   Install the Google API Client Library using pip: ``pip install google-api-python-client``.
 
-Step 1. Download the script
----------------
+4. **Google OAuth Token**:
 
-Go to your favorite hacking directory and clone the repo::
+   Follow the steps in the **Generating a Google OAuth 2.0 Token** section below to create your token.
 
-	git clone https://github.com/tomov/youtube-upload.git
+Step 1: Clone the Repository
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Then go to the script directory::
+Clone the repository to your local machine using the command: ``git clone https://github.com/Ishuin/Youtube_uploader.git``.
 
-	cd youtube-upload
-	
-Step 2. Run the script
----------------
+Step 2: Install Dependencies
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Make sure to have your YouTube credentials JSON file saved in your videos directory (if you don't, should issue a new set of credentials by following the instructions `here <https://developers.google.com/youtube/registering_an_application>`_). Then run the script::
+Navigate to the project directory and install the required dependencies by running ``pip install -r requirements.txt``.
 
-	python youpload.py --dir=[videos directory]
+Step 3: Setup Google OAuth Token
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Here is what this would look like for an example directory::
+Follow the steps in the next section to generate your OAuth 2.0 token and place the `token.json` file in the project directory.
 
-	python youpload.py --dir="/Users/tomov90/Downloads/My Videos/"
+Generating a Google OAuth 2.0 Token for Bulk YouTube Uploader
+=============================================================
 
-You will be forwarded to a YouTube confirmation page in your browser. Click ``Accept`` and go back to the terminal. You will get another prompt asking you if you are sure you want to continue. Type ``Y`` and let python do the rest of the work! Note that for this example directory, your JSON credentials file would have to be ``/Users/tomov90/Downloads/My Videos/client_secrets.json``.
+Follow the steps below to generate a Google OAuth 2.0 token required for uploading videos to YouTube using the YouTube Data API v3.
 
+1. **Create a Project on Google Cloud Platform (GCP)**:
+   
+   - Go to the Google Cloud Console.
+   - Create a new project or select an existing one.
 
-Step 3. Check if everything is fine
--------------------
+2. **Enable YouTube Data API**:
 
-Even as the script is running, you can watch videos being added if you go to your YouTube account `video manager <http://www.youtube.com/my_videos>`_. Once the script has finished, go there to make sure everything has been successfully uploaded. Check the Uploads count at the top of the page and make sure it looks right. I also recommend checking the playlists by clicking ``Playlists`` in the Video Manager left sidebar to make sure the videos are organized according to the directory layout.
+   - Navigate to `APIs & Services > Library`.
+   - Search for "YouTube Data API v3" and click on Enable.
 
-Also make sure all videos are private. In the `video manager <http://www.youtube.com/my_videos>`_, next to each video there should be a little blue lock that says ``Private`` when you hover over it.
+3. **Configure OAuth Consent Screen**:
 
+   - Go to `APIs & Services > OAuth consent screen`.
+   - Select "External" as the user type.
+   - Fill in the required information such as App name, Support email, and Developer contact information.
+   - Under "Scopes", add the necessary scope for YouTube uploads: `https://www.googleapis.com/auth/youtube.force-ssl`.
 
-Step 4. Re-running the script
--------------------
+4. **Create OAuth 2.0 Credentials**:
 
-To back up the same folder to the same YouTube account, simply run::
+   - Go to `APIs & Services > Credentials`.
+   - Click on `+ Create Credentials` and select `OAuth 2.0 Client ID`.
+   - For "Application Type", choose "Desktop App".
+   - Download the `client_secret_<unique_id>.json` file after the credentials are created.
 
-	python youpload.py --dir=[videos directory] --no-prompt
+5. **Install Required Python Libraries**:
 
-And the upload should start immediately. The app also saves a history of all previously uploaded videos and unless you move stuff around or rename your files or directories, it will avoid uploading duplicate videos or creating duplicate playlists.
+   Install the necessary libraries using the command: ``pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client``.
 
+6. **Generate the OAuth 2.0 Token**:
 
-Step 5. Automate the script
--------------------
+   Use the downloaded `client_secret_<unique_id>.json` file to generate the OAuth 2.0 token.
 
-The best part about a command-line script like this is that you can easily automate it. You can do this by creating a cron job through the command line::
+   **Modification**: When generating the token, ensure the path to your `client_secret_<unique_id>.json` file is correct in your script.
 
-	crontab -e
+   Save the generated token as `token.json` and place it in the project directory.
 
-This will open the crontab file. Simply add the line::
+7. **Use the OAuth 2.0 Token in Your Script**:
 
-	0  *  *  *  *  /full/path/to/youtube-upload/youpload.py --dir=[videos directory] --no-prompt > /dev/null 2>&1
+   Modify your script to use the `token.json` file for authentication. Ensure that the file path to the `token.json` file in your code is correctly set to its location in the project directory.
 
-Which will run the script in the background every hour. For example, for me the line would be::
+8. **Refresh the Token**:
 
-	0  *  *  *  * /Users/tomov90/Dev/youtube-upload/youpload.py --dir="/Users/tomov90/Downloads/My Videos/" --no-prompt > /dev/null 2>&1
+   The access token in `token.json` expires after a while, but it will automatically refresh if the refresh token is still valid. Ensure your script handles token expiration.
 
-Alternatively, for Mac OS, you can use the Mac Automator by following `this <http://arstechnica.com/apple/2011/03/howto-build-mac-os-x-services-with-automator-and-shell-scripting/>`_ or `this <http://lifehacker.com/5668648/automate-just-about-anything-on-your-mac-no-coding-required>`_ tutorial.
-
-
-Advanced
-===================
-
-The script works with relative paths, so if you move your videos directory to a different location or even if you upload it from a different computer, it should still work. Those relative paths are stored in the descriptions of the videos and playlists in your YouTube account, so please avoid changing them. The script also never deletes uploaded videos.
-
-
-Files
--------------------
-
-You will notice that the script creates a bunch of files with the prefix ``youploader.*``  in your videos directory. One of them will be hidden, namely::
-
-	.youploader.oauth2.json
-
-This file contains your YouTube account access information so you don't have to enter it every time. However, this also means that anyone who has access to this file can access your precious videos, so make sure to avoid sending it to random people. If you ever delete it, you will have to re-approve the script for your account.
-
-In addition, the script saves a history of all uploaded videos and playlists in these files::
-
-	youploader.uploaded_videos.db
-	youploader.created_playlists.db
-
-This helps the script avoid duplicate uploads. If you delete them, the script will still avoid duplicate uploads by first fetching a list of all videos and playlists from the YouTube account. In fact, if for some reason you upload videos to the same account from different directories, it might make sense to delete those files and let the script "refresh" them with the latest data in the YouTube account.
-
-Finally, the script creates a log of failed uploads and ignored files::
-
-	youploader.failed_uploads.log
-	youploader.ignored_files.log
-
-This is for debugging purposes and to make sure none of your important files were ignored or failed to upload for some reason. Feel free to remove them.
-
-
-Future work
------------------
-
-The script is far from perfect and there is plenty of room for improvement. Feel free to fork, change, improve, and distribute as you see fit! Some suggestions for improvements:
-
-1. Splitting videos
-
-Unfortunatley YouTube does not allow uploading videos longer than 10 minutes. Currently the script will try and fail to upload those so you will simply have to split them manually. It would be great if someone adds a video splitting tool that automatically does that before attempting to upload.
-
-2. Windows and Linux compatibility
-
-It would be awesome if someone tried to see if this works on other platforms. It will surely need some help to get it going under Windows since I've hardcoded a bunch of forward slashes here and there (sorry about that).
-
-3. ``--dry-run`` option
-
-It would be great to have the option to run the script without actually uploading or changing anything, just to see what will happen (which files will be uploaded, how many of them, etc)
-
-4. Pause/resume script
-
-Currently you can interrupt the script with ``Cmd+C`` and restart it. It would be nice if you could only pause it.
-
-5. Intelligent deduplication
-
-This is kind of advanced, but it would be awesome if the script can detect if you renamed a file or a directory and instead of reuploading the whole thing over again, it would simply rename the corresponding videos and playlists in the YouTube account. This might require some sort of hashing but would make the script a lot more robust.
-
+For further details, refer to the `YouTube Data API Documentation <https://developers.google.com/youtube/v3>`_.
 
 License
-==============
+=======
 
-Youpload.py consists of code by Momchil Tomov and from the Google API sample code page. Feel free to modify, distribute, and use as you see fit!
+This project is licensed under the GNU General Public License v3.0 (GPL-3.0).
+
+You are free to use, modify, and distribute this software, but any distribution of modified or unmodified versions must include the original license. Any modifications you make must also be open-source and distributed under the same GPL license terms.
+
+For more details, refer to the `GNU General Public License v3.0 <https://www.gnu.org/licenses/gpl-3.0.en.html>`_.
